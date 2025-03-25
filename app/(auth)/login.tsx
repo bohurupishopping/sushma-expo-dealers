@@ -15,7 +15,7 @@ import { Lock, Mail, ArrowRight, CircleAlert as AlertCircle } from 'lucide-react
 import { Link } from 'expo-router';
 import { z } from 'zod';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
-import { Checkbox } from '@/components/ui/checkbox';
+import React from 'react';
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 

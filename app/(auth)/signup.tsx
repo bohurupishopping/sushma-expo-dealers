@@ -15,6 +15,7 @@ import { Lock, Mail, User, ArrowRight, CircleAlert as AlertCircle, Check } from 
 import { Link } from 'expo-router';
 import { z } from 'zod';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import React from 'react';
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
@@ -100,9 +101,9 @@ export default function Signup() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}>
       <Image
-        source={{ uri: 'https://images.unsplash.com/photo-1579546929662-711aa81148cf?w=800&auto=format&fit=crop&q=80' }}
+        source={{ uri: 'https://images.unsplash.com/photo-1604076913837-52ab5629fba9?w=800&auto=format&fit=crop&q=80' }}
         style={StyleSheet.absoluteFillObject}
-        blurRadius={70}
+        blurRadius={40}
       />
 
       <Animated.View 
@@ -200,22 +201,7 @@ export default function Signup() {
           />
         </View>
 
-        <TouchableOpacity
-          style={styles.termsContainer}
-          onPress={() => setAcceptTerms(!acceptTerms)}>
-          <View style={[
-            styles.checkbox,
-            acceptTerms && styles.checkboxChecked
-          ]}>
-            {acceptTerms && (
-              <Check size={14} color="#ffffff" strokeWidth={3} />
-            )}
-          </View>
-          <Text style={styles.termsText}>
-            I accept the{' '}
-            <Text style={styles.termsLink}>terms and conditions</Text>
-          </Text>
-        </TouchableOpacity>
+        
 
         <AnimatedTouchableOpacity
           entering={FadeInUp.duration(400).delay(200)}

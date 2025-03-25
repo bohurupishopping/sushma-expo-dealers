@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Platform, RefreshControl } from 'react-native';
 import { useAuth } from '@/providers/AuthProvider';
 import { 
   LogOut, 
@@ -11,16 +11,27 @@ import {
   Settings, 
   Bell, 
   CircleHelp as HelpCircle,
-  ChevronRight
+  ChevronRight,
+  RefreshCw
 } from 'lucide-react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/supabase';
 import Animated, { FadeIn, FadeInRight } from 'react-native-reanimated';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
+
+// Cache keys
+const CACHE_KEYS = {
+  PROFILE: 'profile_cache',
+  LAST_FETCH: 'profile_last_fetch',
+};
+
+// Cache duration (5 minutes)
+const CACHE_DURATION = 5 * 60 * 1000;
 
 const menuItems = [
   {
@@ -48,33 +59,82 @@ export default function Profile() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    async function fetchProfile() {
-      try {
-        if (!authProfile?.user_id) return;
-
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', authProfile.user_id)
-          .single();
-
-        if (error) throw error;
-        setProfile(data);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to fetch profile data'
-        );
-      } finally {
-        setLoading(false);
+  // Load cached data
+  const loadCachedData = useCallback(async () => {
+    try {
+      const lastFetch = await AsyncStorage.getItem(CACHE_KEYS.LAST_FETCH);
+      const now = Date.now();
+      
+      if (lastFetch && now - parseInt(lastFetch) < CACHE_DURATION) {
+        const cachedProfile = await AsyncStorage.getItem(CACHE_KEYS.PROFILE);
+        if (cachedProfile) {
+          setProfile(JSON.parse(cachedProfile));
+          return true;
+        }
       }
+      return false;
+    } catch (error) {
+      console.error('Error loading cached data:', error);
+      return false;
     }
+  }, []);
 
-    fetchProfile();
-  }, [authProfile?.user_id]);
+  // Save data to cache
+  const saveToCache = useCallback(async (profile: Profile) => {
+    try {
+      await Promise.all([
+        AsyncStorage.setItem(CACHE_KEYS.PROFILE, JSON.stringify(profile)),
+        AsyncStorage.setItem(CACHE_KEYS.LAST_FETCH, Date.now().toString())
+      ]);
+    } catch (error) {
+      console.error('Error saving to cache:', error);
+    }
+  }, []);
 
-  if (loading) {
+  // Fetch fresh data
+  const fetchProfile = useCallback(async () => {
+    try {
+      if (!authProfile?.user_id) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', authProfile.user_id)
+        .single();
+
+      if (error) throw error;
+      setProfile(data);
+      await saveToCache(data);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Failed to fetch profile data'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [authProfile?.user_id, saveToCache]);
+
+  // Initial load
+  useEffect(() => {
+    if (authProfile?.user_id) {
+      loadCachedData().then(hasCachedData => {
+        if (!hasCachedData) {
+          fetchProfile();
+        }
+      });
+    }
+  }, [authProfile?.user_id, loadCachedData, fetchProfile]);
+
+  // Handle refresh
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchProfile();
+    setRefreshing(false);
+  }, [fetchProfile]);
+
+  if (loading && !profile) {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -84,12 +144,18 @@ export default function Profile() {
     );
   }
 
-  if (error) {
+  if (error && !profile) {
     return (
       <View style={styles.container}>
         <View style={styles.errorContainer}>
           <AlertCircle color="#ef4444" size={48} />
           <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={fetchProfile}>
+            <RefreshCw size={20} color="#ef4444" strokeWidth={2.5} />
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -98,7 +164,16 @@ export default function Profile() {
   return (
     <ScrollView 
       style={styles.container}
-      showsVerticalScrollIndicator={false}>
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor="#6366f1"
+          colors={['#6366f1']}
+          progressBackgroundColor="#ffffff"
+        />
+      }>
       <View style={styles.header}>
         <Image
           source={{ uri: 'https://images.unsplash.com/photo-1579546929662-711aa81148cf?w=800&auto=format&fit=crop&q=80' }}
@@ -127,7 +202,6 @@ export default function Profile() {
         <Animated.View 
           entering={FadeInRight.duration(600).delay(400).springify()}
           style={styles.section}>
-          
           
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
@@ -395,6 +469,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#ef4444',
+    letterSpacing: 0.3,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 16,
+    gap: 8,
+  },
+  retryText: {
+    fontSize: 14,
+    color: '#ef4444',
+    fontWeight: '600',
     letterSpacing: 0.3,
   },
 });
