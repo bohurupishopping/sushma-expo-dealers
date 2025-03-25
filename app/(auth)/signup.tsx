@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   Image,
 } from 'react-native';
 import { useAuth } from '@/providers/AuthProvider';
-import { Lock, Mail, User, ArrowRight, CircleAlert as AlertCircle, Check } from 'lucide-react-native';
+import { Lock, Mail, User, ArrowRight, CircleAlert as AlertCircle } from 'lucide-react-native';
 import { Link } from 'expo-router';
 import { z } from 'zod';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
@@ -36,7 +36,6 @@ export default function Signup() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [acceptTerms, setAcceptTerms] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -74,10 +73,6 @@ export default function Signup() {
         throw new Error('Passwords do not match');
       }
 
-      if (!acceptTerms) {
-        throw new Error('Please accept the terms and conditions');
-      }
-
       // Validate input
       signupSchema.parse({ email, password, displayName });
 
@@ -101,11 +96,11 @@ export default function Signup() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}>
       <Image
-        source={{ uri: 'https://images.unsplash.com/photo-1604076913837-52ab5629fba9?w=800&auto=format&fit=crop&q=80' }}
+        source={{ uri: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800&auto=format&fit=crop&q=80' }}
         style={StyleSheet.absoluteFillObject}
-        blurRadius={40}
+        blurRadius={70}
       />
-
+      
       <Animated.View 
         entering={FadeInDown.duration(1000).springify()}
         style={styles.header}>
@@ -201,8 +196,6 @@ export default function Signup() {
           />
         </View>
 
-        
-
         <AnimatedTouchableOpacity
           entering={FadeInUp.duration(400).delay(200)}
           style={styles.button}
@@ -297,7 +290,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 56,
     borderWidth: 2,
-    borderColor: '#f1f5f9',
+    borderColor: '#e2e8f0',
   },
   input: {
     flex: 1,
@@ -308,14 +301,13 @@ const styles = StyleSheet.create({
   passwordStrength: {
     marginTop: -8,
     marginBottom: 16,
-    paddingHorizontal: 4,
   },
   strengthMeter: {
     height: 4,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#e2e8f0',
     borderRadius: 2,
     overflow: 'hidden',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   strengthIndicator: {
     height: '100%',
@@ -323,62 +315,41 @@ const styles = StyleSheet.create({
   },
   strengthText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
     letterSpacing: 0.2,
   },
-  termsContainer: {
+  button: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#6366f1',
-    marginRight: 8,
     justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: '#6366f1',
-  },
-  termsText: {
-    fontSize: 14,
-    color: '#64748b',
-  },
-  termsLink: {
-    color: '#6366f1',
-    fontWeight: '600',
-  },
-  button: {
     backgroundColor: '#6366f1',
     borderRadius: 16,
-    height: 56,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
+    padding: 16,
+    marginTop: 8,
+    gap: 8,
   },
   buttonText: {
-    color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
-    marginRight: 8,
+    color: '#ffffff',
     letterSpacing: 0.3,
   },
   footer: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+    gap: 8,
   },
   footerText: {
+    fontSize: 14,
     color: '#64748b',
-    marginRight: 8,
+    letterSpacing: 0.2,
   },
   footerLink: {
+    fontSize: 14,
     color: '#6366f1',
     fontWeight: '600',
+    letterSpacing: 0.2,
   },
 });

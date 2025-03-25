@@ -114,10 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (authError) throw authError;
       if (!authData.user) throw new Error('User creation failed');
 
-      // Wait for auth to complete
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Create profile
+      // Create profile immediately after auth signup
       const { error: profileError } = await supabase.from('profiles').insert([
         {
           user_id: authData.user.id,
@@ -129,6 +126,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ]);
 
       if (profileError) throw profileError;
+
+      // Update user metadata to ensure display name is set
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: { display_name: displayName }
+      });
+
+      if (updateError) throw updateError;
 
       return { error: null, success: true };
     } catch (error) {
