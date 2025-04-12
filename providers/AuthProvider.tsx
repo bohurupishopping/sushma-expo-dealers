@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 
@@ -80,9 +81,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(data);
     } catch (error) {
       console.error('Error fetching profile:', error);
-      await signOut();
+      // Only sign out if it's explicitly an inactive user error,
+      // otherwise, keep the session but profile might be null temporarily.
+      // Consider adding retry logic or specific error handling here if needed.
+      if ((error as Error)?.message?.includes('deactivated')) {
+         await signOut(); // Keep sign out for deactivated accounts
+      } else {
+        // For other errors (network etc.), don't sign out immediately.
+        // The profile will remain null, which UI should handle.
+        setProfile(null); 
+      }
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Ensure loading is set to false even on error
     }
   }
 
@@ -166,13 +176,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Your account has been deactivated. Please contact support.');
       }
 
-      // Set session persistence if remember me is checked
-      if (rememberMe && data.session) {
-        await supabase.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        });
-      }
+      // REMOVED: Manual setSession call. Supabase handles persistence automatically.
+      // if (rememberMe && data.session) { ... } 
 
       return { error: null, success: true };
     } catch (error) {
@@ -192,11 +197,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+
+      // Clear screen-specific caches
+      try {
+        await AsyncStorage.removeItem('orders_cache');
+        await AsyncStorage.removeItem('orders_last_fetch');
+        await AsyncStorage.removeItem('finance_cache');
+        await AsyncStorage.removeItem('finance_last_fetch');
+      } catch (cacheError) {
+        console.error('Error clearing screen caches on sign out:', cacheError);
+      }
+
     } catch (error) {
       console.error('Error signing out:', error);
       // Clear local state even if there's an error
       setSession(null);
       setProfile(null);
+       // Attempt to clear screen-specific caches even on error
+      try {
+        await AsyncStorage.removeItem('orders_cache');
+        await AsyncStorage.removeItem('orders_last_fetch');
+        await AsyncStorage.removeItem('finance_cache');
+        await AsyncStorage.removeItem('finance_last_fetch');
+      } catch (cacheError) {
+        console.error('Error clearing screen caches on sign out error:', cacheError);
+      }
     }
   };
 
