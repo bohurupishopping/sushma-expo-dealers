@@ -20,6 +20,7 @@ const CACHE_DURATION = 5 * 60 * 1000;
 
 export default function Finance() {
   const { profile } = useAuth();
+  // Use previous transactions/balance as initial value if available (for instant UI)
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +40,8 @@ export default function Finance() {
         const cachedData = await AsyncStorage.getItem(CACHE_KEYS.FINANCE);
         if (cachedData) {
           const parsedData = JSON.parse(cachedData);
-          setTransactions(parsedData.transactions || []);
-          setDealerBalance(parsedData.balance);
+          setTransactions(prev => prev.length === 0 ? (parsedData.transactions || []) : prev); // Only set if not already set
+          setDealerBalance(prev => prev === null ? parsedData.balance : prev);
           return true;
         }
       }
@@ -71,9 +72,20 @@ export default function Finance() {
       }
 
       const financeData = await fetchDealerFinance(profile.user_id, forceRefresh);
-      setTransactions(financeData.transactions || []);
-      setDealerBalance(financeData.balance);
-      await saveToCache(financeData.transactions || [], financeData.balance);
+      // Only update if different
+      setTransactions(prev => {
+        if (JSON.stringify(prev) !== JSON.stringify(financeData.transactions || [])) {
+          saveToCache(financeData.transactions || [], financeData.balance);
+          return financeData.transactions || [];
+        }
+        return prev;
+      });
+      setDealerBalance(prev => {
+        if (JSON.stringify(prev) !== JSON.stringify(financeData.balance)) {
+          return financeData.balance;
+        }
+        return prev;
+      });
       setError(null);
     } catch (err) {
       console.error('Error fetching finance data:', err);
@@ -326,6 +338,17 @@ export default function Finance() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 8,
+  },
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
@@ -429,16 +452,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748b',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: '#64748b',
-  },
+
   errorContainer: {
     flex: 1,
     justifyContent: 'center',

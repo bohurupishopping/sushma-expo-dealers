@@ -31,6 +31,7 @@ interface Order {
 
 export default function Orders() {
   const { profile } = useAuth();
+  // Use previous orders as initial value if available (for instant UI)
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +48,8 @@ export default function Orders() {
       if (lastFetch && now - parseInt(lastFetch) < CACHE_DURATION) {
         const cachedOrders = await AsyncStorage.getItem(CACHE_KEYS.ORDERS);
         if (cachedOrders) {
-          setOrders(JSON.parse(cachedOrders));
+          const parsed = JSON.parse(cachedOrders);
+          setOrders(prev => prev.length === 0 ? parsed : prev); // Only set if not already set
           return true;
         }
       }
@@ -83,8 +85,14 @@ export default function Orders() {
       }
 
       const ordersData = await fetchDealerOrders(dealerData.id);
-      setOrders(ordersData);
-      await saveToCache(ordersData);
+      // Only update if different
+      setOrders(prev => {
+        if (JSON.stringify(prev) !== JSON.stringify(ordersData)) {
+          saveToCache(ordersData);
+          return ordersData;
+        }
+        return prev;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch orders');
     } finally {
@@ -139,6 +147,17 @@ export default function Orders() {
     order.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     order.id.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (loading && orders.length === 0) {
+    // Only show loading if neither cached nor previous orders are available
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading orders...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -245,6 +264,16 @@ export default function Orders() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#64748b',
+    marginTop: 8,
+  },
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',

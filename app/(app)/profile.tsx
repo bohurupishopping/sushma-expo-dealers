@@ -56,8 +56,9 @@ const menuItems = [
 
 export default function Profile() {
   const { profile: authProfile, signOut } = useAuth();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Use authProfile as initial value for instant UI
+  const [profile, setProfile] = useState<Profile | null>(authProfile ?? null);
+  const [loading, setLoading] = useState(!authProfile);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -66,15 +67,16 @@ export default function Profile() {
     try {
       const lastFetch = await AsyncStorage.getItem(CACHE_KEYS.LAST_FETCH);
       const now = Date.now();
-      
+      let usedCache = false;
       if (lastFetch && now - parseInt(lastFetch) < CACHE_DURATION) {
         const cachedProfile = await AsyncStorage.getItem(CACHE_KEYS.PROFILE);
         if (cachedProfile) {
-          setProfile(JSON.parse(cachedProfile));
-          return true;
+          const parsed = JSON.parse(cachedProfile);
+          setProfile(prev => prev ?? parsed); // Only set if not already set
+          usedCache = true;
         }
       }
-      return false;
+      return usedCache;
     } catch (error) {
       console.error('Error loading cached data:', error);
       return false;
@@ -97,16 +99,20 @@ export default function Profile() {
   const fetchProfile = useCallback(async () => {
     try {
       if (!authProfile?.user_id) return;
-
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', authProfile.user_id)
         .single();
-
       if (error) throw error;
-      setProfile(data);
-      await saveToCache(data);
+      // Only update if different
+      setProfile(prev => {
+        if (!prev || JSON.stringify(prev) !== JSON.stringify(data)) {
+          saveToCache(data);
+          return data;
+        }
+        return prev;
+      });
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Failed to fetch profile data'
@@ -118,13 +124,15 @@ export default function Profile() {
 
   // Initial load
   useEffect(() => {
+    let mounted = true;
     if (authProfile?.user_id) {
       loadCachedData().then(hasCachedData => {
-        if (!hasCachedData) {
+        if (!hasCachedData && mounted) {
           fetchProfile();
         }
       });
     }
+    return () => { mounted = false; };
   }, [authProfile?.user_id, loadCachedData, fetchProfile]);
 
   // Handle refresh
@@ -135,6 +143,7 @@ export default function Profile() {
   }, [fetchProfile]);
 
   if (loading && !profile) {
+    // Only show loading if neither cached nor authProfile is available
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>

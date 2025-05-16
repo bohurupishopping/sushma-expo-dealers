@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import useNetworkStatus from '@/hooks/useNetworkStatus';
 import {
   View,
   Text,
@@ -80,6 +81,7 @@ interface NewOrderModalProps {
 }
 
 export default function NewOrderModal({ visible, onClose, onSuccess }: NewOrderModalProps) {
+  const isConnected = useNetworkStatus();
   const { profile } = useAuth();
   const [dealerDetails, setDealerDetails] = useState<DealerDetails | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -186,15 +188,19 @@ export default function NewOrderModal({ visible, onClose, onSuccess }: NewOrderM
 
   // Initial load
   useEffect(() => {
+    let isMounted = true;
     if (visible && profile?.user_id) {
       loadCachedData().then(hasCachedData => {
-        if (!hasCachedData) {
+        if (!hasCachedData && isMounted) {
           fetchFreshData();
         }
       });
     } else {
-      resetForm();
+      if (isMounted) resetForm();
     }
+    return () => {
+      isMounted = false;
+    };
   }, [visible, profile?.user_id, loadCachedData, fetchFreshData]);
 
   // Handle refresh
@@ -213,6 +219,10 @@ export default function NewOrderModal({ visible, onClose, onSuccess }: NewOrderM
       dropdownHeight.value = withSpring(0);
       dropdownOpacity.value = withTiming(0);
     }
+    return () => {
+      dropdownHeight.value = 0;
+      dropdownOpacity.value = 0;
+    };
   }, [showProductDropdown]);
 
   // Animate notes
@@ -224,6 +234,10 @@ export default function NewOrderModal({ visible, onClose, onSuccess }: NewOrderM
       notesHeight.value = withSpring(0);
       dropdownOpacity.value = withTiming(0);
     }
+    return () => {
+      notesHeight.value = 0;
+      dropdownOpacity.value = 0;
+    };
   }, [notesExpanded]);
 
   const handleProductSelect = (product: Product) => {
@@ -294,8 +308,11 @@ export default function NewOrderModal({ visible, onClose, onSuccess }: NewOrderM
     setShowAllProducts(false);
   };
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(productSearchQuery.toLowerCase())
+  const filteredProducts = useMemo(() =>
+    products.filter(product =>
+      product.name.toLowerCase().includes(productSearchQuery.toLowerCase())
+    ),
+    [products, productSearchQuery]
   );
 
   return (
@@ -304,6 +321,12 @@ export default function NewOrderModal({ visible, onClose, onSuccess }: NewOrderM
       animationType="slide"
       presentationStyle="pageSheet"
       onRequestClose={onClose}>
+      {!isConnected && (
+        <View style={{backgroundColor: '#fef08a', padding: 10, alignItems: 'center'}}>
+          <Text style={{color: '#ca8a04', fontWeight: 'bold'}}>You are offline. Showing cached data. New orders cannot be placed until you are online.</Text>
+        </View>
+      )}
+
       <View style={styles.container}>
         <Animated.View 
           entering={FadeIn.duration(300)}
